@@ -9,6 +9,16 @@ public class LauncherFilterTests
     [InlineData("EpicGamesLauncher")]
     [InlineData("EpicGamesLauncher.exe")]
     [InlineData("EpicWebHelper")]
+    [InlineData("EpicOnlineServicesHost")]
+    [InlineData("EpicOnlineServicesHost.exe")]
+    [InlineData("EOSOverlayRenderer-Win64-Shipping")]
+    [InlineData("EOSOverlayRenderer-Win32-Shipping.exe")]
+    [InlineData("EOSSDK-Win64-Shipping")]
+    [InlineData("CrashReportClient")]
+    [InlineData("CrashReportClient-Win64-Shipping.exe")]
+    [InlineData("EasyAntiCheat_EOS")]
+    [InlineData("EasyAntiCheat_x64.exe")]
+    [InlineData("BEService")]
     [InlineData("EADesktop")]
     [InlineData("EADesktop.exe")]
     [InlineData("Origin")]
@@ -32,8 +42,10 @@ public class LauncherFilterTests
     [InlineData("GTA5")]
     [InlineData("EASportsFC24")]
     [InlineData("DiabloIV.exe")]
+    [InlineData("FortniteClient-Win64-Shipping")]
     public void IsLauncherOrSystemProcess_ReturnsFalse_ForGameProcesses(string processName)
     {
         Assert.False(LauncherFilter.IsLauncherOrSystemProcess(processName));
     }
 }
+

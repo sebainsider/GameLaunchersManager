@@ -33,7 +33,8 @@ public class DefaultProcessProvider : IProcessProvider
             var startInfo = new ProcessStartInfo
             {
                 FileName = commandOrUri,
-                UseShellExecute = true
+                UseShellExecute = true,
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

@@ -1,5 +1,9 @@
 # LauncherBridge 🚀
 
+<p align="center">
+  <img src="LauncherBridge/icon.png" width="128" alt="LauncherBridge Icon" />
+</p>
+
 **LauncherBridge** is a lightweight, zero-dependency .NET 9 utility for Windows designed to solve Steam's inability to detect when games launched via third-party launchers (Epic Games Store, EA App, Ubisoft Connect, Battle.net, GOG Galaxy, etc.) exit.
 
 ---
@@ -100,7 +104,17 @@ dotnet build LauncherBridge.sln
 dotnet test LauncherBridge.sln
 ```
 
-### Publish Self-Contained Single-File Executable (Windows x64)
+### Publish Lightweight Executable (Windows x64 - ~182 KB)
+```bash
+dotnet publish LauncherBridge/LauncherBridge.csproj \
+  -c Release \
+  -r win-x64 \
+  --self-contained false \
+  -p:PublishSingleFile=true \
+  -p:EnableCompressionInSingleFile=false
+```
+
+### Publish Self-Contained Executable (Windows x64 - ~35 MB)
 ```bash
 dotnet publish LauncherBridge/LauncherBridge.csproj \
   -c Release \
