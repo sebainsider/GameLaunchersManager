@@ -5,6 +5,7 @@ public class Options
     public string LaunchCommand { get; set; } = string.Empty;
     public string? ProcessName { get; set; }
     public int TimeoutSeconds { get; set; } = 60;
+    public bool CloseLauncher { get; set; }
     public bool Verbose { get; set; }
     public bool ShowHelp { get; set; }
 
@@ -34,6 +35,13 @@ public class Options
                 arg.Equals("-v", StringComparison.OrdinalIgnoreCase))
             {
                 options.Verbose = true;
+                continue;
+            }
+
+            if (arg.Equals("--close-launcher", StringComparison.OrdinalIgnoreCase) ||
+                arg.Equals("-c", StringComparison.OrdinalIgnoreCase))
+            {
+                options.CloseLauncher = true;
                 continue;
             }
 
@@ -129,12 +137,14 @@ public class Options
         Console.WriteLine("                               If omitted, automatically detects new processes started after launch.");
         Console.WriteLine("  --timeout, -t <seconds>      (Optional) Maximum time to wait for the target process to start.");
         Console.WriteLine("                               Default: 60 seconds.");
+        Console.WriteLine("  --close-launcher, -c         (Optional) Close/terminate third-party launcher processes after game exits.");
         Console.WriteLine("  --verbose, -v                (Optional) Enable verbose debug logging.");
         Console.WriteLine("  --help, -h                   Display this help message.");
         Console.WriteLine();
         Console.WriteLine("Examples:");
-        Console.WriteLine("  LauncherBridge --launch \"com.epicgames.launcher://apps/Item?action=launch\"");
+        Console.WriteLine("  LauncherBridge --launch \"com.epicgames.launcher://apps/Item?action=launch\" --close-launcher");
         Console.WriteLine("  LauncherBridge --launch \"steam://run/123456\" --process \"MyGame\"");
-        Console.WriteLine("  LauncherBridge --launch \"C:\\Games\\Launcher.exe\" --timeout 90");
+        Console.WriteLine("  LauncherBridge --launch \"C:\\Games\\Launcher.exe\" --timeout 90 -c");
     }
 }
+

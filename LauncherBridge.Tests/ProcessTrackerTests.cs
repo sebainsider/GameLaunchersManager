@@ -9,6 +9,8 @@ public class MockProcessProvider : IProcessProvider
     public Dictionary<string, int> InstanceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool LaunchResult { get; set; } = true;
     public string? LastLaunchedCommand { get; set; private get; }
+    public bool CloseLauncherCalled { get; set; }
+    public string? CloseLauncherCommandPassed { get; set; }
 
     private int _snapshotIndex = 0;
 
@@ -38,7 +40,14 @@ public class MockProcessProvider : IProcessProvider
         }
         return 0;
     }
+
+    public void CloseLauncherProcesses(string launchCommand)
+    {
+        CloseLauncherCalled = true;
+        CloseLauncherCommandPassed = launchCommand;
+    }
 }
+
 
 public class ProcessTrackerTests
 {
@@ -190,5 +199,32 @@ public class ProcessTrackerTests
         // LauncherBridge must succeed when AlanWake2 exits, even if EpicOnlineServicesHost is still running
         Assert.Equal(0, exitCode);
     }
+
+    [Fact]
+    public async Task RunAsync_WithCloseLauncher_CallsCloseLauncherProcesses()
+    {
+        var provider = new MockProcessProvider();
+        provider.InstanceCounts["AlanWake2"] = 1;
+
+        var tracker = new ProcessTracker(provider, _logger);
+        var options = new Options
+        {
+            LaunchCommand = "com.epicgames.launcher://apps/Item?action=launch",
+            ProcessName = "AlanWake2",
+            CloseLauncher = true,
+            TimeoutSeconds = 5
+        };
+
+        var trackerTask = tracker.RunAsync(options);
+        await Task.Delay(600);
+        provider.InstanceCounts["AlanWake2"] = 0;
+
+        int exitCode = await trackerTask;
+
+        Assert.Equal(0, exitCode);
+        Assert.True(provider.CloseLauncherCalled);
+        Assert.Equal("com.epicgames.launcher://apps/Item?action=launch", provider.CloseLauncherCommandPassed);
+    }
 }
+
 

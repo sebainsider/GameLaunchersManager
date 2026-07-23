@@ -37,6 +37,7 @@ LauncherBridge.exe --launch "com.epicgames.launcher://apps/Item?action=launch"
 | `--launch` | `-l` | **Yes** | Launcher URI or command line to execute | N/A |
 | `--process` | `-p` | No | Explicit process name (without `.exe`) to override auto-detection | Auto-detect |
 | `--timeout` | `-t` | No | Timeout in seconds waiting for the game process to start | `60` |
+| `--close-launcher` | `-c` | No | Close third-party launcher (e.g. Epic Games Launcher) when game exits | `false` |
 | `--verbose` | `-v` | No | Enable detailed debug logs | `false` |
 | `--help` | `-h` | No | Display help message | N/A |
 
@@ -56,10 +57,11 @@ To use LauncherBridge with Steam:
 ---
 
 ### 1. Epic Games Store
-Launch games via Epic Games Store URIs.
+Launch games via Epic Games Store URIs (optionally add `--close-launcher` / `-c` to close Epic Launcher when done):
 
 - **Target**: `"C:\Tools\LauncherBridge.exe"`
-- **Launch Options**: `--launch "com.epicgames.launcher://apps/6f438871317448e8a83d42042079148d%3A5f6c8d37a1f54460a5e8f49ef2c4a9a0%3AFrogmores?action=launch&silent=true"`
+- **Launch Options**: `--launch "com.epicgames.launcher://apps/6f438871317448e8a83d42042079148d%3A5f6c8d37a1f54460a5e8f49ef2c4a9a0%3AFrogmores?action=launch&silent=true" --close-launcher`
+
 
 *LauncherBridge will automatically snapshot processes, launch Epic, ignore `EpicGamesLauncher.exe`/`EpicWebHelper.exe`, detect `AlanWake2.exe`, and track it to completion.*
 

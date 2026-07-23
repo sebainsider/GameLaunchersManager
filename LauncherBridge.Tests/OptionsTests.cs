@@ -84,4 +84,23 @@ public class OptionsTests
         Assert.Null(options);
         Assert.Contains("Missing required argument", error);
     }
+
+    [Fact]
+    public void Parse_WithCloseLauncherFlag_SetsCloseLauncherProperty()
+    {
+        var args = new[] { "--launch", "com.epicgames.launcher://apps/Item", "--close-launcher" };
+        var (options, error) = Options.Parse(args);
+
+        Assert.Null(error);
+        Assert.NotNull(options);
+        Assert.True(options.CloseLauncher);
+
+        var argsShort = new[] { "--launch", "com.epicgames.launcher://apps/Item", "-c" };
+        var (optionsShort, errorShort) = Options.Parse(argsShort);
+
+        Assert.Null(errorShort);
+        Assert.NotNull(optionsShort);
+        Assert.True(optionsShort.CloseLauncher);
+    }
 }
+

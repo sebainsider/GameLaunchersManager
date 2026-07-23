@@ -8,6 +8,7 @@ public interface IProcessProvider
     ProcessSnapshot CaptureSnapshot();
     bool Launch(string commandOrUri);
     int GetRunningInstanceCount(string processName);
+    void CloseLauncherProcesses(string launchCommand);
 }
 
 public class DefaultProcessProvider : IProcessProvider
@@ -88,6 +89,89 @@ public class DefaultProcessProvider : IProcessProvider
             return 0;
         }
     }
+
+    public void CloseLauncherProcesses(string launchCommand)
+    {
+        var targetProcesses = GetLauncherProcessNames(launchCommand);
+
+        foreach (var procName in targetProcesses)
+        {
+            try
+            {
+                var processes = Process.GetProcessesByName(procName);
+                foreach (var p in processes)
+                {
+                    try
+                    {
+                        _logger.LogInfo($"Terminating launcher process '{p.ProcessName}' (PID: {p.Id})...");
+                        p.Kill(entireProcessTree: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug($"Could not terminate process '{procName}' (PID: {p.Id}): {ex.Message}");
+                    }
+                    finally
+                    {
+                        p.Dispose();
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore process enum errors
+            }
+        }
+    }
+
+    public static string[] GetLauncherProcessNames(string launchCommand)
+    {
+        if (string.IsNullOrWhiteSpace(launchCommand))
+            return Array.Empty<string>();
+
+        if (launchCommand.Contains("epic", StringComparison.OrdinalIgnoreCase) ||
+            launchCommand.Contains("epicgames", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[]
+            {
+                "EpicGamesLauncher",
+                "EpicWebHelper",
+                "EpicOnlineServicesHost",
+                "EpicOnlineServices",
+                "EpicOnlineServicesUser",
+                "EpicInstaller",
+                "EOSOverlayRenderer",
+                "EOSOverlayRenderer-Win64-Shipping",
+                "EOSOverlayRenderer-Win32-Shipping",
+                "EOSSDK-Win64-Shipping",
+                "EOSSDK-Win32-Shipping",
+                "CrashReportClient",
+                "CrashReportClient-Win64-Shipping",
+                "CrashReportClient-Win32-Shipping",
+                "EasyAntiCheat_EOS"
+            };
+        }
+        if (launchCommand.Contains("origin", StringComparison.OrdinalIgnoreCase) ||
+            launchCommand.Contains("ea", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "EADesktop", "EABackgroundService", "EAWebKit", "EALauncher", "EACrashReporter", "EACoreServer", "Origin", "OriginClientService", "OriginWebHelperService" };
+        }
+        if (launchCommand.Contains("uplay", StringComparison.OrdinalIgnoreCase) ||
+            launchCommand.Contains("ubisoft", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "UbisoftConnect", "upc", "Uplay", "UplayWebCore", "UbisoftGameLauncher", "UbisoftGameLauncher64", "UplayService" };
+        }
+        if (launchCommand.Contains("battlenet", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "Battle.net", "Agent" };
+        }
+        if (launchCommand.Contains("gog", StringComparison.OrdinalIgnoreCase) ||
+            launchCommand.Contains("galaxy", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "GalaxyClient", "GalaxyClientService", "GalaxyCommunication", "GalaxyOverlay" };
+        }
+
+        return new[] { "EpicGamesLauncher", "EpicWebHelper", "EpicOnlineServicesHost", "EpicOnlineServices", "EADesktop", "UbisoftConnect", "GalaxyClient", "Battle.net" };
+    }
 }
 
 public class ProcessTracker
@@ -142,12 +226,34 @@ public class ProcessTracker
         _logger.LogInfo($"Tracking target process: '{targetProcessName}'");
         await MonitorProcessUntilExitAsync(targetProcessName, cancellationToken);
 
+        // 5. Close launcher if --close-launcher flag is enabled OR if launcher was newly started by LauncherBridge
+        bool wasLauncherRunningInitially = CheckIfLauncherWasRunningInitially(initialSnapshot, options.LaunchCommand);
+        if (options.CloseLauncher || !wasLauncherRunningInitially)
+        {
+            _logger.LogInfo("Closing third-party launcher processes (Epic Games Launcher, Epic Online Services, etc.)...");
+            _provider.CloseLauncherProcesses(options.LaunchCommand);
+        }
+
         _logger.LogInfo($"All instances of '{targetProcessName}' have exited. LauncherBridge exiting with code 0.");
         return 0;
     }
 
+    private static bool CheckIfLauncherWasRunningInitially(ProcessSnapshot initialSnapshot, string launchCommand)
+    {
+        var targetProcesses = DefaultProcessProvider.GetLauncherProcessNames(launchCommand);
+        foreach (var procName in targetProcesses)
+        {
+            if (initialSnapshot.Processes.Values.Any(name => name.Equals(procName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public async Task<string?> AutoDetectProcessAsync(ProcessSnapshot initialSnapshot, int timeoutSeconds, CancellationToken cancellationToken)
     {
+
         var startTime = DateTime.UtcNow;
         var timeoutSpan = TimeSpan.FromSeconds(timeoutSeconds);
 
@@ -225,3 +331,4 @@ public class ProcessTracker
         }
     }
 }
+
