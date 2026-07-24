@@ -29,13 +29,13 @@ public class DefaultProcessProvider : IProcessProvider
     {
         try
         {
-            _logger.LogInfo($"Launching: '{commandOrUri}'");
+            string cleanCommand = commandOrUri.Trim('"', '\'');
+            _logger.LogInfo($"Launching: '{cleanCommand}'");
 
             var startInfo = new ProcessStartInfo
             {
-                FileName = commandOrUri,
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                FileName = cleanCommand,
+                UseShellExecute = true
             };
 
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -45,7 +45,7 @@ public class DefaultProcessProvider : IProcessProvider
                     startInfo = new ProcessStartInfo
                     {
                         FileName = "open",
-                        Arguments = $"\"{commandOrUri}\"",
+                        Arguments = $"\"{cleanCommand}\"",
                         UseShellExecute = false
                     };
                 }
@@ -54,7 +54,7 @@ public class DefaultProcessProvider : IProcessProvider
                     startInfo = new ProcessStartInfo
                     {
                         FileName = "xdg-open",
-                        Arguments = $"\"{commandOrUri}\"",
+                        Arguments = $"\"{cleanCommand}\"",
                         UseShellExecute = false
                     };
                 }
@@ -69,6 +69,7 @@ public class DefaultProcessProvider : IProcessProvider
             return false;
         }
     }
+
 
     public int GetRunningInstanceCount(string processName)
     {
