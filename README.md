@@ -61,42 +61,41 @@ To use LauncherBridge with Steam:
 ---
 
 ### 1. Epic Games Store
-Launch games via Epic Games Store URIs (optionally add `--close-launcher` / `-c` to close Epic Launcher when done):
+Launch games via Epic Games Store URIs (add `--close-launcher` or `-c` to automatically close Epic Launcher when done):
 
 - **Target**: `"C:\Tools\LauncherBridge.exe"`
-- **Launch Options**: `--launch "com.epicgames.launcher://apps/6f438871317448e8a83d42042079148d%3A5f6c8d37a1f54460a5e8f49ef2c4a9a0%3AFrogmores?action=launch&silent=true" --close-launcher`
+- **Launch Options**: `"com.epicgames.launcher://apps/6f438871317448e8a83d42042079148d%3A5f6c8d37a1f54460a5e8f49ef2c4a9a0%3AFrogmores?action=launch&silent=true" --close-launcher`
 
-
-*LauncherBridge will automatically snapshot processes, launch Epic, ignore `EpicGamesLauncher.exe`/`EpicWebHelper.exe`, detect `AlanWake2.exe`, and track it to completion.*
+*LauncherBridge will automatically snapshot processes, launch Epic, ignore `EpicGamesLauncher.exe`/`EpicWebHelper.exe`, detect `AlanWake2.exe`, track it to completion, and close Epic Launcher.*
 
 ---
 
 ### 2. EA App
-Launch games via EA App protocol URIs or executables.
+Launch games via EA App protocol URIs or executables:
 
 - **Target**: `"C:\Tools\LauncherBridge.exe"`
-- **Launch Options**: `--launch "origin2://game/launch?offerIds=1000001&authCode="`
+- **Launch Options**: `"origin2://game/launch?offerIds=1000001&authCode=" --close-launcher`
 
 *(Optional fallback if auto-detect is bypassed)*:
 ```cmd
-LauncherBridge.exe --launch "origin2://game/launch?offerIds=1000001" --process "EASportsFC24"
+LauncherBridge.exe "origin2://game/launch?offerIds=1000001" --process "EASportsFC24" --close-launcher
 ```
 
 ---
 
 ### 3. Ubisoft Connect
-Launch games via Ubisoft Connect URIs (`uplay://launch/<GameID>/0`).
+Launch games via Ubisoft Connect URIs (`uplay://launch/<GameID>/0`):
 
 - **Target**: `"C:\Tools\LauncherBridge.exe"`
-- **Launch Options**: `--launch "uplay://launch/5105/0"`
+- **Launch Options**: `"uplay://launch/5105/0" --close-launcher`
 
 ---
 
 ### 4. Battle.net
-Launch games via Battle.net URIs (`battlenet://`).
+Launch games via Battle.net URIs (`battlenet://`):
 
 - **Target**: `"C:\Tools\LauncherBridge.exe"`
-- **Launch Options**: `--launch "battlenet://Fen"`
+- **Launch Options**: `"battlenet://Fen" --close-launcher`
 
 ---
 
