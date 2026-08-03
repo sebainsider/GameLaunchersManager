@@ -199,35 +199,17 @@ public class ProcessTracker
             return 1;
         }
 
-        // 3. Detect or wait for process start
-        string? targetProcessName = options.ProcessName;
+        // 3. Track game session lifetime
+        _logger.LogInfo($"Monitoring game session (timeout waiting for start: {options.TimeoutSeconds}s)...");
+        bool gameStarted = await TrackGameSessionAsync(initialSnapshot, options, cancellationToken);
 
-        if (string.IsNullOrEmpty(targetProcessName))
-        {
-            _logger.LogInfo($"Auto-detecting target process (timeout: {options.TimeoutSeconds}s)...");
-            targetProcessName = await AutoDetectProcessAsync(initialSnapshot, options.TimeoutSeconds, cancellationToken);
-        }
-        else
-        {
-            _logger.LogInfo($"Waiting for process '{targetProcessName}' to start (timeout: {options.TimeoutSeconds}s)...");
-            bool started = await WaitForExplicitProcessAsync(targetProcessName, options.TimeoutSeconds, cancellationToken);
-            if (!started)
-            {
-                targetProcessName = null;
-            }
-        }
-
-        if (string.IsNullOrEmpty(targetProcessName))
+        if (!gameStarted)
         {
             _logger.LogError($"Target process failed to start within {options.TimeoutSeconds} seconds.");
             return 1;
         }
 
-        // 4. Track target process until all instances exit
-        _logger.LogInfo($"Tracking target process: '{targetProcessName}'");
-        await MonitorProcessUntilExitAsync(targetProcessName, cancellationToken);
-
-        // 5. Close launcher if --close-launcher flag is enabled OR if launcher was newly started by LauncherBridge
+        // 4. Close launcher if --close-launcher flag is enabled OR if launcher was newly started by LauncherBridge
         bool wasLauncherRunningInitially = CheckIfLauncherWasRunningInitially(initialSnapshot, options.LaunchCommand);
         if (options.CloseLauncher || !wasLauncherRunningInitially)
         {
@@ -235,8 +217,113 @@ public class ProcessTracker
             _provider.CloseLauncherProcesses(options.LaunchCommand);
         }
 
-        _logger.LogInfo($"All instances of '{targetProcessName}' have exited. LauncherBridge exiting with code 0.");
+        _logger.LogInfo("Game session ended. LauncherBridge exiting with code 0.");
         return 0;
+    }
+
+    public async Task<bool> TrackGameSessionAsync(ProcessSnapshot initialSnapshot, Options options, CancellationToken cancellationToken)
+    {
+        var startTime = DateTime.UtcNow;
+        var timeoutSpan = TimeSpan.FromSeconds(options.TimeoutSeconds);
+
+        var trackedGamePids = new HashSet<int>();
+        string? primaryProcessName = options.ProcessName;
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var currentSnapshot = _provider.CaptureSnapshot();
+            var newProcesses = initialSnapshot.GetNewProcesses(currentSnapshot);
+
+            var gameCandidates = newProcesses
+                .Where(p => !LauncherFilter.IsLauncherOrSystemProcess(p.ProcessName))
+                .ToList();
+
+            if (!string.IsNullOrEmpty(options.ProcessName))
+            {
+                gameCandidates = gameCandidates
+                    .Where(p => p.ProcessName.Equals(options.ProcessName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            foreach (var p in gameCandidates)
+            {
+                if (trackedGamePids.Add(p.Id))
+                {
+                    _logger.LogInfo($"Detected active game process: '{p.ProcessName}' (PID: {p.Id})");
+                    primaryProcessName ??= p.ProcessName;
+                }
+            }
+
+            // Waiting for initial game process to start
+            if (trackedGamePids.Count == 0)
+            {
+                if (DateTime.UtcNow - startTime > timeoutSpan)
+                {
+                    return false;
+                }
+
+                _logger.LogDebug("Waiting for game process to start...");
+                await Task.Delay(500, cancellationToken);
+                continue;
+            }
+
+            // Count how many tracked game processes are currently active
+            int activeCount = 0;
+            foreach (var pid in trackedGamePids)
+            {
+                if (currentSnapshot.Processes.ContainsKey(pid))
+                {
+                    activeCount++;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(primaryProcessName))
+            {
+                int nameCount = _provider.GetRunningInstanceCount(primaryProcessName);
+                if (nameCount > activeCount)
+                {
+                    activeCount = nameCount;
+                }
+            }
+
+            if (activeCount == 0)
+            {
+                // Brief pause and re-check to ensure no sub-process transitions
+                await Task.Delay(1500, cancellationToken);
+                var recheckSnapshot = _provider.CaptureSnapshot();
+                var recheckNew = initialSnapshot.GetNewProcesses(recheckSnapshot);
+                var recheckGame = recheckNew
+                    .Where(p => !LauncherFilter.IsLauncherOrSystemProcess(p.ProcessName))
+                    .ToList();
+
+                if (!string.IsNullOrEmpty(options.ProcessName))
+                {
+                    recheckGame = recheckGame
+                        .Where(p => p.ProcessName.Equals(options.ProcessName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                int recheckActiveCount = 0;
+                foreach (var p in recheckGame)
+                {
+                    if (trackedGamePids.Contains(p.Id) || (primaryProcessName != null && p.ProcessName.Equals(primaryProcessName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        recheckActiveCount++;
+                    }
+                }
+
+                if (recheckActiveCount == 0)
+                {
+                    _logger.LogInfo("All game processes have exited.");
+                    return true;
+                }
+            }
+
+            _logger.LogDebug($"Monitoring game session: {activeCount} active process(es)");
+            await Task.Delay(1000, cancellationToken);
+        }
+
+        return trackedGamePids.Count > 0;
     }
 
     private static bool CheckIfLauncherWasRunningInitially(ProcessSnapshot initialSnapshot, string launchCommand)
@@ -251,85 +338,6 @@ public class ProcessTracker
         }
         return false;
     }
-
-    public async Task<string?> AutoDetectProcessAsync(ProcessSnapshot initialSnapshot, int timeoutSeconds, CancellationToken cancellationToken)
-    {
-
-        var startTime = DateTime.UtcNow;
-        var timeoutSpan = TimeSpan.FromSeconds(timeoutSeconds);
-
-        while (DateTime.UtcNow - startTime < timeoutSpan)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            var currentSnapshot = _provider.CaptureSnapshot();
-            var newProcesses = initialSnapshot.GetNewProcesses(currentSnapshot);
-
-            var gameCandidates = newProcesses
-                .Where(p => !LauncherFilter.IsLauncherOrSystemProcess(p.ProcessName))
-                .ToList();
-
-            if (gameCandidates.Count > 0)
-            {
-                var detected = gameCandidates.First();
-                _logger.LogInfo($"Detected new game process: '{detected.ProcessName}' (PID: {detected.Id})");
-                if (gameCandidates.Count > 1)
-                {
-                    _logger.LogDebug($"Other new processes detected: {string.Join(", ", gameCandidates.Skip(1).Select(p => p.ProcessName))}");
-                }
-                return detected.ProcessName;
-            }
-
-            _logger.LogDebug("No game process detected yet, waiting 500ms...");
-            await Task.Delay(500, cancellationToken);
-        }
-
-        return null;
-    }
-
-    public async Task<bool> WaitForExplicitProcessAsync(string processName, int timeoutSeconds, CancellationToken cancellationToken)
-    {
-        var startTime = DateTime.UtcNow;
-        var timeoutSpan = TimeSpan.FromSeconds(timeoutSeconds);
-
-        while (DateTime.UtcNow - startTime < timeoutSpan)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            int count = _provider.GetRunningInstanceCount(processName);
-            if (count > 0)
-            {
-                _logger.LogInfo($"Process '{processName}' detected ({count} running instance(s)).");
-                return true;
-            }
-
-            await Task.Delay(500, cancellationToken);
-        }
-
-        return false;
-    }
-
-    public async Task MonitorProcessUntilExitAsync(string processName, CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            int count = _provider.GetRunningInstanceCount(processName);
-            if (count == 0)
-            {
-                // Double check after brief delay to avoid transient exit blips
-                await Task.Delay(500, cancellationToken);
-                count = _provider.GetRunningInstanceCount(processName);
-                if (count == 0)
-                {
-                    break;
-                }
-            }
-
-            _logger.LogDebug($"Monitoring '{processName}': {count} active instance(s).");
-            await Task.Delay(1000, cancellationToken);
-        }
-    }
 }
+
 

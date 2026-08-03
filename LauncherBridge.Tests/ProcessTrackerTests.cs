@@ -225,6 +225,69 @@ public class ProcessTrackerTests
         Assert.True(provider.CloseLauncherCalled);
         Assert.Equal("com.epicgames.launcher://apps/Item?action=launch", provider.CloseLauncherCommandPassed);
     }
+
+    [Fact]
+    public async Task RunAsync_TracksMultiStageGameBootstrapper_WithoutEarlyExit()
+    {
+        var provider = new MockProcessProvider();
+
+        var initialProcs = new List<ProcessInfo>
+        {
+            new(10, "system")
+        };
+
+        // Step 1: Launcher opens bootstrapper (PID 100)
+        var step1Procs = new List<ProcessInfo>
+        {
+            new(10, "system"),
+            new(20, "EpicGamesLauncher"),
+            new(100, "AlanWake2Launcher")
+        };
+
+        // Step 2: Bootstrapper spawns real game (PID 101)
+        var step2Procs = new List<ProcessInfo>
+        {
+            new(10, "system"),
+            new(20, "EpicGamesLauncher"),
+            new(100, "AlanWake2Launcher"),
+            new(101, "AlanWake2-Win64-Shipping")
+        };
+
+        // Step 3: Bootstrapper (PID 100) exits, but real game (PID 101) remains
+        var step3Procs = new List<ProcessInfo>
+        {
+            new(10, "system"),
+            new(20, "EpicGamesLauncher"),
+            new(101, "AlanWake2-Win64-Shipping")
+        };
+
+        provider.SnapshotsToReturn = new List<ProcessSnapshot>
+        {
+            new(initialProcs),
+            new(step1Procs),
+            new(step2Procs),
+            new(step3Procs)
+        };
+
+        var tracker = new ProcessTracker(provider, _logger);
+        var options = new Options
+        {
+            LaunchCommand = "com.epicgames.launcher://apps/Item?action=launch",
+            TimeoutSeconds = 5
+        };
+
+        var trackerTask = tracker.RunAsync(options);
+        await Task.Delay(1200);
+
+        // After 1.2s, step 3 is reached. Real game (PID 101) is still alive.
+        // Signal real game exit by setting empty snapshot
+        provider.SnapshotsToReturn.Add(new ProcessSnapshot(new[] { new ProcessInfo(10, "system"), new ProcessInfo(20, "EpicGamesLauncher") }));
+
+        int exitCode = await trackerTask;
+
+        Assert.Equal(0, exitCode);
+    }
 }
+
 
 
